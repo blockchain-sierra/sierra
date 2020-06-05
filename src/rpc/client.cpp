@@ -1,6 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2015 The Bitcoin Core developers
-// Copyright (c) 2014-2019 The Dash Core developers
+// Copyright (c) 2014-2017 The Sierra Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -136,6 +136,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "prioritisetransaction", 1, "fee_delta" },
     { "setban", 2, "bantime" },
     { "setban", 3, "absolute" },
+    { "setbip69enabled", 0, "enabled" },
     { "setnetworkactive", 0, "state" },
     { "setprivatesendrounds", 0, "rounds" },
     { "setprivatesendamount", 0, "amount" },

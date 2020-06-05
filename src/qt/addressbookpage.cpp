@@ -1,10 +1,10 @@
 // Copyright (c) 2011-2015 The Bitcoin Core developers
-// Copyright (c) 2014-2017 The Dash Core developers
+// Copyright (c) 2014-2017 The Sierra Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #if defined(HAVE_CONFIG_H)
-#include "config/dash-config.h"
+#include "config/sierra-config.h"
 #endif
 
 #include "addressbookpage.h"
@@ -39,10 +39,10 @@ AddressBookPage::AddressBookPage(const PlatformStyle *platformStyle, Mode _mode,
         ui->deleteAddress->setIcon(QIcon());
         ui->exportButton->setIcon(QIcon());
     } else {
-        ui->newAddress->setIcon(QIcon(":/icons/" + theme + "/add"));
-        ui->copyAddress->setIcon(QIcon(":/icons/" + theme + "/editcopy"));
-        ui->deleteAddress->setIcon(QIcon(":/icons/" + theme + "/remove"));
-        ui->exportButton->setIcon(QIcon(":/icons/" + theme + "/export"));
+        ui->newAddress->setIcon(QIcon(":/icons/add"));
+        ui->copyAddress->setIcon(QIcon(":/icons/editcopy"));
+        ui->deleteAddress->setIcon(QIcon(":/icons/remove"));
+        ui->exportButton->setIcon(QIcon(":/icons/export"));
     }
     ui->showAddressQRCode->setIcon(QIcon());
 
@@ -71,11 +71,11 @@ AddressBookPage::AddressBookPage(const PlatformStyle *platformStyle, Mode _mode,
     switch(tab)
     {
     case SendingTab:
-        ui->labelExplanation->setText(tr("These are your Dash addresses for sending payments. Always check the amount and the receiving address before sending coins."));
+        ui->labelExplanation->setText(tr("These are your Sierra addresses for sending payments. Always check the amount and the receiving address before sending coins."));
         ui->deleteAddress->setVisible(true);
         break;
     case ReceivingTab:
-        ui->labelExplanation->setText(tr("These are your Dash addresses for receiving payments. It is recommended to use a new receiving address for each transaction."));
+        ui->labelExplanation->setText(tr("These are your Sierra addresses for receiving payments. It is recommended to use a new receiving address for each transaction."));
         ui->deleteAddress->setVisible(false);
         break;
     }

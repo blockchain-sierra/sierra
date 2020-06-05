@@ -38,13 +38,14 @@ public:
     void showOutOfSyncWarning(bool fShow);
 
 public Q_SLOTS:
-    void privateSendStatus();
-    void setBalance(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance, const CAmount& anonymizedBalance,
-                    const CAmount& watchOnlyBalance, const CAmount& watchUnconfBalance, const CAmount& watchImmatureBalance);
+            void setBalance(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance, const CAmount& anonymizedBalance,
+                            const CAmount& watchOnlyBalance, const CAmount& watchUnconfBalance, const CAmount& watchImmatureBalance, const CAmount& stakeBalance, const int stakeInputs);
+    void setBlockChainInfo(int count, const QDateTime& blockDate, double nVerificationProgress, bool headers);
 
-Q_SIGNALS:
-    void transactionClicked(const QModelIndex &index);
+    Q_SIGNALS:
+            void transactionClicked(const QModelIndex &index);
     void outOfSyncWarningClicked();
+
 
 private:
     QTimer *timer;
@@ -54,6 +55,8 @@ private:
     CAmount currentBalance;
     CAmount currentUnconfirmedBalance;
     CAmount currentImmatureBalance;
+    CAmount currentStakeBalance;
+    int currentStakeInputs;
     CAmount currentAnonymizedBalance;
     CAmount currentWatchOnlyBalance;
     CAmount currentWatchUnconfBalance;
@@ -65,17 +68,13 @@ private:
     TxViewDelegate *txdelegate;
     std::unique_ptr<TransactionFilterProxy> filter;
 
-    void SetupTransactionList(int nNumItems);
-    void DisablePrivateSendCompletely();
+    void SetupTransactionList();
+
+    QString getStakeStatus();
+    QString getAvgBlockTime();
 
 private Q_SLOTS:
-    void togglePrivateSend();
-    void privateSendAuto();
-    void privateSendReset();
-    void privateSendInfo();
-    void updateDisplayUnit();
-    void updatePrivateSendProgress();
-    void updateAdvancedPSUI(bool fShowAdvancedPSUI);
+            void updateDisplayUnit();
     void handleTransactionClicked(const QModelIndex &index);
     void updateAlerts(const QString &warnings);
     void updateWatchOnlyLabels(bool showWatchOnly);

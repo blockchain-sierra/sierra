@@ -23,6 +23,8 @@ class CWallet;
 
 namespace Consensus { struct Params; };
 
+extern int64_t nLastCoinStakeSearchInterval;
+
 static const bool DEFAULT_PRINTPRIORITY = false;
 
 struct CBlockTemplate
@@ -169,7 +171,7 @@ public:
     BlockAssembler(const CChainParams& params, const Options& options);
 
     /** Construct a new block template with coinbase to scriptPubKeyIn */
-    std::unique_ptr<CBlockTemplate> CreateNewBlock(const CScript& scriptPubKeyIn);
+    std::unique_ptr<CBlockTemplate> CreateNewBlock(CWallet *wallet, const CChainParams& chainparams, const CScript& scriptPubKeyIn, bool fProofOfStake);
 
 private:
     // utility functions
@@ -208,5 +210,6 @@ private:
 /** Modify the extranonce in a block */
 void IncrementExtraNonce(CBlock* pblock, const CBlockIndex* pindexPrev, unsigned int& nExtraNonce);
 int64_t UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev);
-
+/** Run the miner threads */
+void ThreadStakeMinter(const CChainParams& chainparams, CConnman &connman, CWallet *pwallet);
 #endif // BITCOIN_MINER_H

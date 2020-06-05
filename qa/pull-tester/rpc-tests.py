@@ -25,9 +25,86 @@ import subprocess
 import tempfile
 import re
 
-BASE_SCRIPTS= [
-    # Scripts that are run by the travis build process.
-    # Longest test should go first, to favor running tests in parallel
+sys.path.append("qa/pull-tester/")
+from tests_config import *
+
+BOLD = ("","")
+if os.name == 'posix':
+    # primitive formatting on supported
+    # terminal via ANSI escape sequences:
+    BOLD = ('\033[0m', '\033[1m')
+
+RPC_TESTS_DIR = SRCDIR + '/qa/rpc-tests/'
+
+#If imported values are not defined then set to zero (or disabled)
+if 'ENABLE_WALLET' not in vars():
+    ENABLE_WALLET=0
+if 'ENABLE_BITCOIND' not in vars():
+    ENABLE_BITCOIND=0
+if 'ENABLE_UTILS' not in vars():
+    ENABLE_UTILS=0
+if 'ENABLE_ZMQ' not in vars():
+    ENABLE_ZMQ=0
+    
+# python-zmq may not be installed. Handle this gracefully and with some helpful info
+if ENABLE_ZMQ:
+    try:
+        import zmq
+    except ImportError:
+        print("WARNING: \"import zmq\" failed. Setting ENABLE_ZMQ=0. " \
+            "To run zmq tests, see dependency info in /qa/README.md.")
+        ENABLE_ZMQ=0
+
+ENABLE_COVERAGE=0
+
+#Create a set to store arguments and create the passon string
+opts = set()
+passon_args = []
+PASSON_REGEX = re.compile("^--")
+PARALLEL_REGEX = re.compile('^-parallel=')
+
+print_help = False
+run_parallel = 4
+
+for arg in sys.argv[1:]:
+    if arg == "--help" or arg == "-h" or arg == "-?":
+        print_help = True
+        break
+    if arg == '--coverage':
+        ENABLE_COVERAGE = 1
+    elif PASSON_REGEX.match(arg):
+        passon_args.append(arg)
+    elif PARALLEL_REGEX.match(arg):
+        run_parallel = int(arg.split(sep='=', maxsplit=1)[1])
+    else:
+        opts.add(arg)
+
+#Set env vars
+if "SIERRAD" not in os.environ:
+    os.environ["SIERRAD"] = BUILDDIR + '/src/sierrad' + EXEEXT
+
+if EXEEXT == ".exe" and "-win" not in opts:
+    # https://github.com/bitcoin/bitcoin/commit/d52802551752140cf41f0d9a225a43e84404d3e9
+    # https://github.com/bitcoin/bitcoin/pull/5677#issuecomment-136646964
+    print("Win tests currently disabled by default.  Use -win option to enable")
+    sys.exit(0)
+
+if not (ENABLE_WALLET == 1 and ENABLE_UTILS == 1 and ENABLE_BITCOIND == 1):
+    print("No rpc tests to run. Wallet, utils, and bitcoind must all be enabled")
+    sys.exit(0)
+
+# python3-zmq may not be installed. Handle this gracefully and with some helpful info
+if ENABLE_ZMQ:
+    try:
+        import zmq
+    except ImportError:
+        print("ERROR: \"import zmq\" failed. Set ENABLE_ZMQ=0 or "
+              "to run zmq tests, see dependency info in /qa/README.md.")
+        # ENABLE_ZMQ=0
+        raise
+
+testScripts = [
+    # longest test should go first, to favor running tests in parallel
     'dip3-deterministicmns.py', # NOTE: needs dash_hash to pass
     'wallet-hd.py',
     'walletbackup.py',
@@ -48,7 +125,6 @@ BASE_SCRIPTS= [
     'llmq-chainlocks.py', # NOTE: needs dash_hash to pass
     'llmq-simplepose.py', # NOTE: needs dash_hash to pass
     'llmq-is-cl-conflicts.py', # NOTE: needs dash_hash to pass
-    'llmq-is-retroactive.py', # NOTE: needs dash_hash to pass
     'llmq-dkgerrors.py', # NOTE: needs dash_hash to pass
     'dip4-coinbasemerkleroots.py', # NOTE: needs dash_hash to pass
     # vv Tests less than 60s vv
@@ -134,6 +210,7 @@ EXTENDED_SCRIPTS = [
     'invalidateblock.py',
     'maxblocksinflight.py',
     'p2p-acceptblock.py', # NOTE: needs dash_hash to pass
+    # 'replace-by-fee.py', # RBF is disabled in Sierra Core
 ]
 
 ALL_SCRIPTS = BASE_SCRIPTS + ZMQ_SCRIPTS + EXTENDED_SCRIPTS

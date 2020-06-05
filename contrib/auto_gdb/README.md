@@ -1,5 +1,5 @@
 # Contents
-This directory contains tools to automatically get data about the memory consumption by some objects in dashd process with the help of GDB debugger.
+This directory contains tools to automatically get data about the memory consumption by some objects in sierrad process with the help of GDB debugger.
 
 ## dash_dbg.sh
 This shell script attaches GDB to the running dashd process (should be built with debug info), executes debug.gdb script and detaches.

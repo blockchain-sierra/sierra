@@ -48,6 +48,7 @@ public:
         DatabaseCache,          // int
         SpendZeroConfChange,    // bool
         ShowMasternodesTab,     // bool
+        ShowGovernanceTab,      // bool
         ShowAdvancedPSUI,       // bool
         ShowPrivateSendPopups,  // bool
         LowKeysWarning,         // bool

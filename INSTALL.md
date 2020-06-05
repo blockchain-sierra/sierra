@@ -1,5 +1,5 @@
-Building Dash
+Building Sierra
 =============
 
 See doc/build-*.md for instructions on building the various
-elements of the Dash Core reference implementation of Dash.
+elements of the Sierra Core reference implementation of Sierra.

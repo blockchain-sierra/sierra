@@ -143,7 +143,7 @@ public:
 };
 
 /**
- * Dash RPC command dispatcher.
+ * Sierra RPC command dispatcher.
  */
 class CRPCTable
 {

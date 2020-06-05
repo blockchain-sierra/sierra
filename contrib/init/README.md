@@ -1,11 +1,11 @@
 Sample configuration files for:
 
-SystemD: dashd.service
-Upstart: dashd.conf
-OpenRC:  dashd.openrc
-         dashd.openrcconf
-CentOS:  dashd.init
-OS X:    org.dash.dashd.plist
+SystemD: sierrad.service
+Upstart: sierrad.conf
+OpenRC:  sierrad.openrc
+         sierrad.openrcconf
+CentOS:  sierrad.init
+OS X:    org.sierra.sierrad.plist
 
 have been made available to assist packagers in creating node packages here.
 

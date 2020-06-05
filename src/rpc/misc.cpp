@@ -1,6 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2015 The Bitcoin Core developers
-// Copyright (c) 2014-2019 The Dash Core developers
+// Copyright (c) 2014-2017 The Sierra Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -31,6 +31,8 @@
 
 #include <univalue.h>
 
+extern int64_t nLastCoinStakeSearchInterval;
+
 /**
  * @note Do not add or change anything in the information returned by this
  * method. `getinfo` exists for backwards-compatibility only. It combines
@@ -55,8 +57,7 @@ UniValue getinfo(const JSONRPCRequest& request)
             "  \"version\": xxxxx,           (numeric) the server version\n"
             "  \"protocolversion\": xxxxx,   (numeric) the protocol version\n"
             "  \"walletversion\": xxxxx,     (numeric) the wallet version\n"
-            "  \"balance\": xxxxxxx,         (numeric) the total dash balance of the wallet\n"
-            "  \"privatesend_balance\": xxxxxx, (numeric) the anonymized dash balance of the wallet\n"
+            "  \"balance\": xxxxxxx,         (numeric) the total sierra balance of the wallet\n"
             "  \"blocks\": xxxxxx,           (numeric) the current number of blocks processed in the server\n"
             "  \"timeoffset\": xxxxx,        (numeric) the time offset\n"
             "  \"connections\": xxxxx,       (numeric) the number of connections\n"
@@ -90,12 +91,10 @@ UniValue getinfo(const JSONRPCRequest& request)
     obj.push_back(Pair("version", CLIENT_VERSION));
     obj.push_back(Pair("protocolversion", PROTOCOL_VERSION));
 #ifdef ENABLE_WALLET
-    if (pwallet) {
-        obj.push_back(Pair("walletversion", pwallet->GetVersion()));
-        obj.push_back(Pair("balance",       ValueFromAmount(pwallet->GetBalance())));
-        if(!fLiteMode)
-            obj.push_back(Pair("privatesend_balance",       ValueFromAmount(pwallet->GetAnonymizedBalance())));
-    }
+    if (pwalletMain) {
+        obj.push_back(Pair("walletversion", pwalletMain->GetVersion()));
+        obj.push_back(Pair("balance",       ValueFromAmount(pwalletMain->GetBalance())));
+         }
 #endif
     obj.push_back(Pair("blocks",        (int)chainActive.Height()));
     obj.push_back(Pair("timeoffset",    GetTimeOffset()));
@@ -123,21 +122,13 @@ UniValue debug(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() != 1)
         throw std::runtime_error(
-            "debug \"category\"\n"
+            "debug ( 0|1|addrman|alert|bench|coindb|db|lock|rand|rpc|selectcoins|mempool"
+            "|mempoolrej|net|proxy|prune|http|libevent|tor|zmq|"
+            "sierra|privatesend|instantsend|masternode|spork|keepass|mnpayments|gobject )\n"
             "Change debug category on the fly. Specify single category or use '+' to specify many.\n"
-            "\nArguments:\n"
-            "1. \"category\"          (string, required) The name of the debug category to turn on. Can be one of the following:\n"
-            "                       addrman, alert, bench, cmpctblock, coindb, db, http, leveldb, libevent, lock, mempool,\n"
-            "                       mempoolrej, net, proxy, prune, qt, rand, reindex, rpc, selectcoins, tor, zmq, dash\n"
-            "                       (or specifically: chainlocks, gobject, instantsend, keepass, llmq, llmq-dkg, llmq-sigs,\n"
-            "                       masternode, mnpayments, mnsync, privatesend, spork).\n"
-            "                       Can also use \"1\" to turn all categories on at once and \"0\" to turn them off.\n"
-            "                       Note: If specified category doesn't match any of the above, no error is thrown.\n"
-            "\nResult:\n"
-            "  result               (string) \"Debug mode: \" followed by the specified category.\n"
             "\nExamples:\n"
-            + HelpExampleCli("debug", "dash")
-            + HelpExampleRpc("debug", "dash+net")
+            + HelpExampleCli("debug", "sierra")
+            + HelpExampleRpc("debug", "sierra+net")
         );
 
     std::string strMode = request.params[0].get_str();
@@ -319,13 +310,13 @@ UniValue validateaddress(const JSONRPCRequest& request)
     if (request.fHelp || request.params.size() != 1)
         throw std::runtime_error(
             "validateaddress \"address\"\n"
-            "\nReturn information about the given dash address.\n"
+            "\nReturn information about the given sierra address.\n"
             "\nArguments:\n"
-            "1. \"address\"     (string, required) The dash address to validate\n"
+            "1. \"address\"     (string, required) The sierra address to validate\n"
             "\nResult:\n"
             "{\n"
             "  \"isvalid\" : true|false,       (boolean) If the address is valid or not. If not, this is the only property returned.\n"
-            "  \"address\" : \"address\", (string) The dash address validated\n"
+            "  \"address\" : \"address\", (string) The sierra address validated\n"
             "  \"scriptPubKey\" : \"hex\",       (string) The hex encoded scriptPubKey generated by the address\n"
             "  \"ismine\" : true|false,        (boolean) If the address is yours or not\n"
             "  \"iswatchonly\" : true|false,   (boolean) If the address is watchonly\n"
@@ -338,8 +329,8 @@ UniValue validateaddress(const JSONRPCRequest& request)
             "  \"hdchainid\" : \"<hash>\"        (string, optional) The ID of the HD chain\n"
             "}\n"
             "\nExamples:\n"
-            + HelpExampleCli("validateaddress", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\"")
-            + HelpExampleRpc("validateaddress", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\"")
+            + HelpExampleCli("validateaddress", "\"PK6NyLfYDqXyKXZz8EhJWjz3rReqT4VR4a\"")
+            + HelpExampleRpc("validateaddress", "\"PK6NyLfYDqXyKXZz8EhJWjz3rReqT4VR4a\"")
         );
 
 #ifdef ENABLE_WALLET
@@ -421,7 +412,7 @@ CScript _createmultisig_redeemScript(CWallet * const pwallet, const UniValue& pa
     {
         const std::string& ks = keys[i].get_str();
 #ifdef ENABLE_WALLET
-        // Case 1: Dash address and we have full public key:
+        // Case 1: Sierra address and we have full public key:
         CBitcoinAddress address(ks);
         if (pwallet && address.IsValid()) {
             CKeyID keyID;
@@ -478,9 +469,9 @@ UniValue createmultisig(const JSONRPCRequest& request)
 
             "\nArguments:\n"
             "1. nrequired      (numeric, required) The number of required signatures out of the n keys or addresses.\n"
-            "2. \"keys\"       (string, required) A json array of keys which are dash addresses or hex-encoded public keys\n"
+            "2. \"keys\"       (string, required) A json array of keys which are sierra addresses or hex-encoded public keys\n"
             "     [\n"
-            "       \"key\"    (string) dash address or hex-encoded public key\n"
+            "       \"key\"    (string) sierra address or hex-encoded public key\n"
             "       ,...\n"
             "     ]\n"
 
@@ -518,7 +509,7 @@ UniValue verifymessage(const JSONRPCRequest& request)
             "verifymessage \"address\" \"signature\" \"message\"\n"
             "\nVerify a signed message\n"
             "\nArguments:\n"
-            "1. \"address\"         (string, required) The dash address to use for the signature.\n"
+            "1. \"address\"         (string, required) The sierra address to use for the signature.\n"
             "2. \"signature\"       (string, required) The signature provided by the signer in base 64 encoding (see signmessage).\n"
             "3. \"message\"         (string, required) The message that was signed.\n"
             "\nResult:\n"
@@ -527,11 +518,11 @@ UniValue verifymessage(const JSONRPCRequest& request)
             "\nUnlock the wallet for 30 seconds\n"
             + HelpExampleCli("walletpassphrase", "\"mypassphrase\" 30") +
             "\nCreate the signature\n"
-            + HelpExampleCli("signmessage", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwG\" \"my message\"") +
+            + HelpExampleCli("signmessage", "\"PK6NyLfYDqXyKXZz8EhJWjz3rReqT4VR4a\" \"my message\"") +
             "\nVerify the signature\n"
-            + HelpExampleCli("verifymessage", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwG\" \"signature\" \"my message\"") +
+            + HelpExampleCli("verifymessage", "\"PK6NyLfYDqXyKXZz8EhJWjz3rReqT4VR4a\" \"signature\" \"my message\"") +
             "\nAs json rpc\n"
-            + HelpExampleRpc("verifymessage", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwG\", \"signature\", \"my message\"")
+            + HelpExampleRpc("verifymessage", "\"PK6NyLfYDqXyKXZz8EhJWjz3rReqT4VR4a\", \"signature\", \"my message\"")
         );
 
     LOCK(cs_main);
@@ -580,7 +571,7 @@ UniValue signmessagewithprivkey(const JSONRPCRequest& request)
             "\nCreate the signature\n"
             + HelpExampleCli("signmessagewithprivkey", "\"privkey\" \"my message\"") +
             "\nVerify the signature\n"
-            + HelpExampleCli("verifymessage", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwG\" \"signature\" \"my message\"") +
+            + HelpExampleCli("verifymessage", "\"PK6NyLfYDqXyKXZz8EhJWjz3rReqT4VR4a\" \"signature\" \"my message\"") +
             "\nAs json rpc\n"
             + HelpExampleRpc("signmessagewithprivkey", "\"privkey\", \"my message\"")
         );
@@ -712,15 +703,15 @@ UniValue getaddressmempool(const JSONRPCRequest& request)
             "    \"address\"  (string) The base58check encoded address\n"
             "    \"txid\"  (string) The related txid\n"
             "    \"index\"  (number) The related input or output index\n"
-            "    \"satoshis\"  (number) The difference of duffs\n"
+            "    \"satoshis\"  (number) The difference of sierratoshis\n"
             "    \"timestamp\"  (number) The time the transaction entered the mempool (seconds)\n"
             "    \"prevtxid\"  (string) The previous txid (if spending)\n"
             "    \"prevout\"  (string) The previous transaction output index (if spending)\n"
             "  }\n"
             "]\n"
             "\nExamples:\n"
-            + HelpExampleCli("getaddressmempool", "'{\"addresses\": [\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\"]}'")
-            + HelpExampleRpc("getaddressmempool", "{\"addresses\": [\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\"]}")
+            + HelpExampleCli("getaddressmempool", "'{\"addresses\": [\"PK6NyLfYDqXyKXZz8EhJWjz3rReqT4VR4a\"]}'")
+            + HelpExampleRpc("getaddressmempool", "{\"addresses\": [\"PK6NyLfYDqXyKXZz8EhJWjz3rReqT4VR4a\"]}")
         );
 
     std::vector<std::pair<uint160, int> > addresses;
@@ -784,13 +775,13 @@ UniValue getaddressutxos(const JSONRPCRequest& request)
             "    \"txid\"  (string) The output txid\n"
             "    \"outputIndex\"  (number) The output index\n"
             "    \"script\"  (string) The script hex encoded\n"
-            "    \"satoshis\"  (number) The number of duffs of the output\n"
+            "    \"satoshis\"  (number) The number of sierratoshis of the output\n"
             "    \"height\"  (number) The block height\n"
             "  }\n"
             "]\n"
             "\nExamples:\n"
-            + HelpExampleCli("getaddressutxos", "'{\"addresses\": [\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\"]}'")
-            + HelpExampleRpc("getaddressutxos", "{\"addresses\": [\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\"]}")
+            + HelpExampleCli("getaddressutxos", "'{\"addresses\": [\"PK6NyLfYDqXyKXZz8EhJWjz3rReqT4VR4a\"]}'")
+            + HelpExampleRpc("getaddressutxos", "{\"addresses\": [\"PK6NyLfYDqXyKXZz8EhJWjz3rReqT4VR4a\"]}")
         );
 
     std::vector<std::pair<uint160, int> > addresses;
@@ -849,7 +840,7 @@ UniValue getaddressdeltas(const JSONRPCRequest& request)
             "\nResult:\n"
             "[\n"
             "  {\n"
-            "    \"satoshis\"  (number) The difference of duffs\n"
+            "    \"satoshis\"  (number) The difference of sierratoshis\n"
             "    \"txid\"  (string) The related txid\n"
             "    \"index\"  (number) The related input or output index\n"
             "    \"blockindex\"  (number) The related block index\n"
@@ -858,8 +849,8 @@ UniValue getaddressdeltas(const JSONRPCRequest& request)
             "  }\n"
             "]\n"
             "\nExamples:\n"
-            + HelpExampleCli("getaddressdeltas", "'{\"addresses\": [\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\"]}'")
-            + HelpExampleRpc("getaddressdeltas", "{\"addresses\": [\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\"]}")
+            + HelpExampleCli("getaddressdeltas", "'{\"addresses\": [\"PK6NyLfYDqXyKXZz8EhJWjz3rReqT4VR4a\"]}'")
+            + HelpExampleRpc("getaddressdeltas", "{\"addresses\": [\"PK6NyLfYDqXyKXZz8EhJWjz3rReqT4VR4a\"]}")
         );
 
 
@@ -934,12 +925,12 @@ UniValue getaddressbalance(const JSONRPCRequest& request)
             "}\n"
             "\nResult:\n"
             "{\n"
-            "  \"balance\"  (string) The current balance in duffs\n"
-            "  \"received\"  (string) The total number of duffs received (including change)\n"
+            "  \"balance\"  (string) The current balance in sierratoshis\n"
+            "  \"received\"  (string) The total number of sierratoshis received (including change)\n"
             "}\n"
             "\nExamples:\n"
-            + HelpExampleCli("getaddressbalance", "'{\"addresses\": [\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\"]}'")
-            + HelpExampleRpc("getaddressbalance", "{\"addresses\": [\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\"]}")
+            + HelpExampleCli("getaddressbalance", "'{\"addresses\": [\"PK6NyLfYDqXyKXZz8EhJWjz3rReqT4VR4a\"]}'")
+            + HelpExampleRpc("getaddressbalance", "{\"addresses\": [\"PK6NyLfYDqXyKXZz8EhJWjz3rReqT4VR4a\"]}")
         );
 
     std::vector<std::pair<uint160, int> > addresses;
@@ -996,8 +987,8 @@ UniValue getaddresstxids(const JSONRPCRequest& request)
             "  ,...\n"
             "]\n"
             "\nExamples:\n"
-            + HelpExampleCli("getaddresstxids", "'{\"addresses\": [\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\"]}'")
-            + HelpExampleRpc("getaddresstxids", "{\"addresses\": [\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\"]}")
+            + HelpExampleCli("getaddresstxids", "'{\"addresses\": [\"PK6NyLfYDqXyKXZz8EhJWjz3rReqT4VR4a\"]}'")
+            + HelpExampleRpc("getaddresstxids", "{\"addresses\": [\"PK6NyLfYDqXyKXZz8EhJWjz3rReqT4VR4a\"]}")
         );
 
     std::vector<std::pair<uint160, int> > addresses;
@@ -1159,6 +1150,50 @@ UniValue echo(const JSONRPCRequest& request)
     return request.params;
 }
 
+UniValue getstakingstatus(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 0)
+        throw std::runtime_error(
+                "getstakingstatus\n"
+                "Returns an object containing various staking information.\n"
+                "\nResult:\n"
+                "{\n"
+                "  \"enabled\"           (boolean) if staking is enabled by configuration\n"
+                "  \"stakephase\"        (boolean) if the chain tip is within staking phase\n"
+                "  \"haveconnections\"   (boolean) if network connections are present\n"
+                "  \"mnsync\"            (boolean) if masternode data is synced\n"
+                "  \"walletunlocked\"    (boolean) if the wallet is unlocked\n"
+                "  \"mintableinputs\"    (numeric) the number of mintable inputs\n"
+                "  \"stakingamount\"     (numeric) the total staking amount\n"
+                "  \"active\"            (boolean) if the wallet is staking or not\n"
+                "}\n"
+                "\nExamples:\n" +
+                HelpExampleCli("getstakingstatus", "") + HelpExampleRpc("getstakingstatus", ""));
+
+    UniValue obj(UniValue::VOBJ);
+
+    bool bEnabled = GetBoolArg("-staking", DEFAULT_STAKING);
+    bool bStakephase = chainActive.Height() >= Params().GetConsensus().nLastPoWBlock;
+    bool bHaveconnections = g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) > 0;
+    bool bMnsync = masternodeSync.IsSynced();
+    bool bWalletunlocked = pwalletMain && !pwalletMain->IsLocked(true);
+    int nMintableCoins = pwalletMain ? pwalletMain->GetMintableCoins() : 0;
+    CAmount nStakingAmount = pwalletMain ? pwalletMain->GetStakingAmount() : 0;
+    bool bActive = bEnabled && bStakephase && bHaveconnections && bMnsync && bWalletunlocked && nMintableCoins && nStakingAmount;
+
+    obj.push_back(Pair("enabled", bEnabled));
+    obj.push_back(Pair("stakephase", bStakephase));
+    obj.push_back(Pair("haveconnections", bHaveconnections));
+    obj.push_back(Pair("mnsync", bMnsync));
+    if (pwalletMain) {
+        obj.push_back(Pair("walletunlocked", bWalletunlocked));
+        obj.push_back(Pair("mintableinputs", nMintableCoins));
+        obj.push_back(Pair("stakingamount", ValueFromAmount(nStakingAmount)));
+    }
+    obj.push_back(Pair("active", bActive));
+    return obj;
+}
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
   //  --------------------- ------------------------  -----------------------  ----------
@@ -1169,6 +1204,7 @@ static const CRPCCommand commands[] =
     { "util",               "createmultisig",         &createmultisig,         true,  {"nrequired","keys"} },
     { "util",               "verifymessage",          &verifymessage,          true,  {"address","signature","message"} },
     { "util",               "signmessagewithprivkey", &signmessagewithprivkey, true,  {"privkey","message"} },
+    { "util",               "getstakingstatus",       &getstakingstatus,       true,  {} },
     { "blockchain",         "getspentinfo",           &getspentinfo,           false, {"json"} },
 
     /* Address index */
@@ -1178,9 +1214,9 @@ static const CRPCCommand commands[] =
     { "addressindex",       "getaddresstxids",        &getaddresstxids,        false, {"addresses"} },
     { "addressindex",       "getaddressbalance",      &getaddressbalance,      false, {"addresses"} },
 
-    /* Dash features */
-    { "dash",               "mnsync",                 &mnsync,                 true,  {} },
-    { "dash",               "spork",                  &spork,                  true,  {"value"} },
+    /* Sierra features */
+    { "sierra",               "mnsync",                 &mnsync,                 true,  {} },
+    { "sierra",               "spork",                  &spork,                  true,  {"value"} },
 
     /* Not shown in help */
     { "hidden",             "setmocktime",            &setmocktime,            true,  {"timestamp"}},

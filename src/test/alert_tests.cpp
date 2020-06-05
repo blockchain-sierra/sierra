@@ -14,7 +14,7 @@
 #include "utilstrencodings.h"
 
 #include "test/testutil.h"
-#include "test/test_dash.h"
+#include "test/test_sierra.h"
 
 #include <fstream>
 

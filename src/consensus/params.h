@@ -7,6 +7,7 @@
 #define BITCOIN_CONSENSUS_PARAMS_H
 
 #include "uint256.h"
+#include <limits>
 #include <map>
 #include <string>
 
@@ -38,6 +39,15 @@ struct BIP9Deployment {
     int64_t nWindowSize;
     /** A number of blocks, in the range of 1..nWindowSize, which must signal for a fork in order to lock it in. */
     int64_t nThreshold;
+
+    /** Constant for nTimeout very far in the future. */
+    static constexpr int64_t NO_TIMEOUT = std::numeric_limits<int64_t>::max();
+
+    /** Special value for nStartTime indicating that the deployment is always active.
+     *  This is useful for testing, as it means tests don't need to deal with the activation
+     *  process (which takes at least 3 BIP9 intervals). Only tests that specifically test the
+     *  behaviour during activation cannot use this. */
+    static constexpr int64_t ALWAYS_ACTIVE = -1;
 };
 
 enum LLMQType : uint8_t
@@ -49,6 +59,7 @@ enum LLMQType : uint8_t
     LLMQ_400_85 = 3, // 400 members, 340 (85%) threshold, one every 24 hours
 
     // for testing only
+    LLMQ_10_60 = 100, // 10 members, 6 (60%) threshold, one per hour
     LLMQ_5_60 = 100, // 5 members, 3 (60%) threshold, one per hour
 };
 
@@ -171,6 +182,16 @@ struct Params {
     int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
     uint256 nMinimumChainWork;
     uint256 defaultAssumeValid;
+    // Stake
+    int nStakeMaxAge;
+    int64_t nPosTargetSpacing;
+    int64_t nPosTargetTimespan;
+    int nLastPoWBlock;
+    int nFirstDevFeeBlock;
+    int nFirstSpowBlock;
+    unsigned int nWSTargetDiff;
+    int nPoSDiffAdjustRange;
+    int nMaxBlockSpacingFixDeploymentHeight;
 
     /** these parameters are only used on devnet and can be configured from the outside */
     int nMinimumDifficultyBlocks{0};
@@ -180,6 +201,7 @@ struct Params {
     std::map<LLMQType, LLMQParams> llmqs;
     LLMQType llmqChainLocks;
     LLMQType llmqForInstantSend{LLMQ_NONE};
+    bool fLLMQAllowDummyCommitments;
 };
 } // namespace Consensus
 

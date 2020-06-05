@@ -1,6 +1,8 @@
-// Copyright (c) 2014-2019 The Dash Core developers
+// Copyright (c) 2014-2017 The Sierra Core developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
+//#define ENABLE_DASH_DEBUG
 
 #include "activemasternode.h"
 #include "consensus/validation.h"

@@ -30,9 +30,9 @@ bool CheckCbTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidatio
         return state.DoS(100, false, REJECT_INVALID, "bad-cbtx-payload");
     }
 
-    if (cbTx.nVersion == 0 || cbTx.nVersion > CCbTx::CURRENT_VERSION) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-cbtx-version");
-    }
+//  if (cbTx.nVersion == 0 || cbTx.nVersion > CCbTx::CURRENT_VERSION) {
+//      return state.DoS(100, false, REJECT_INVALID, "bad-cbtx-version");
+//  }
 
     if (pindexPrev && pindexPrev->nHeight + 1 != cbTx.nHeight) {
         return state.DoS(100, false, REJECT_INVALID, "bad-cbtx-height");
@@ -188,6 +188,8 @@ bool CalcCbTxMerkleRootQuorums(const CBlock& block, const CBlockIndex* pindexPre
     // due to the use of pindexPrev (we don't have the tip index here)
     for (size_t i = 1; i < block.vtx.size(); i++) {
         auto& tx = block.vtx[i];
+        if (!tx)
+            continue;
 
         if (tx->nVersion == 3 && tx->nType == TRANSACTION_QUORUM_COMMITMENT) {
             llmq::CFinalCommitmentTxPayload qc;

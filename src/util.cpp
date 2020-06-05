@@ -1,17 +1,19 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2015 The Bitcoin Core developers
-// Copyright (c) 2014-2019 The Dash Core developers
+// Copyright (c) 2014-2017 The Sierra Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #if defined(HAVE_CONFIG_H)
-#include "config/dash-config.h"
+#include "config/sierra-config.h"
 #endif
 
 #include "util.h"
 
 #include "support/allocators/secure.h"
 #include "chainparamsbase.h"
+#include "consensus/consensus.h"
+#include "wallet/wallet.h"
 #include "ctpl.h"
 #include "random.h"
 #include "serialize.h"
@@ -110,7 +112,7 @@ namespace boost {
 
 
 
-//Dash only features
+//Sierra only features
 bool fMasternodeMode = false;
 bool fLiteMode = false;
 /**
@@ -122,8 +124,8 @@ bool fLiteMode = false;
 */
 int nWalletBackups = 10;
 
-const char * const BITCOIN_CONF_FILENAME = "dash.conf";
-const char * const BITCOIN_PID_FILENAME = "dashd.pid";
+const char * const BITCOIN_CONF_FILENAME = "sierra.conf";
+const char * const BITCOIN_PID_FILENAME = "sierrad.pid";
 
 CCriticalSection cs_args;
 std::unordered_map<std::string, std::string> mapArgs;
@@ -284,7 +286,7 @@ bool LogAcceptCategory(const char* category)
                 const std::vector<std::string>& categories = mapMultiArgs.at("-debug");
                 ptrCategory.reset(new std::set<std::string>(categories.begin(), categories.end()));
                 // thread_specific_ptr automatically deletes the set when the thread ends.
-                // "dash" is a composite category enabling all Dash-related debug output
+                // "sierra" is a composite category enabling all Sierra-related debug output
                 if(ptrCategory->count(std::string("dash"))) {
                     ptrCategory->insert(std::string("chainlocks"));
                     ptrCategory->insert(std::string("gobject"));
@@ -303,7 +305,7 @@ bool LogAcceptCategory(const char* category)
                 ptrCategory.reset(new std::set<std::string>());
             }
         }
-        const std::set<std::string>& setCategories = *ptrCategory;
+        const std::set<std::string>& setCategories = *ptrCategory.get();
 
         // if not debugging everything and not debugging specific category, LogPrint does nothing.
         if (setCategories.count(std::string("")) == 0 &&
@@ -565,13 +567,13 @@ void PrintExceptionContinue(const std::exception_ptr pex, const char* pszThread)
 boost::filesystem::path GetDefaultDataDir()
 {
     namespace fs = boost::filesystem;
-    // Windows < Vista: C:\Documents and Settings\Username\Application Data\DashCore
-    // Windows >= Vista: C:\Users\Username\AppData\Roaming\DashCore
-    // Mac: ~/Library/Application Support/DashCore
-    // Unix: ~/.dashcore
+    // Windows < Vista: C:\Documents and Settings\Username\Application Data\SierraCore
+    // Windows >= Vista: C:\Users\Username\AppData\Roaming\SierraCore
+    // Mac: ~/Library/Application Support/SierraCore
+    // Unix: ~/.sierracore
 #ifdef WIN32
     // Windows
-    return GetSpecialFolderPath(CSIDL_APPDATA) / "DashCore";
+    return GetSpecialFolderPath(CSIDL_APPDATA) / "SierraCore";
 #else
     fs::path pathRet;
     char* pszHome = getenv("HOME");
@@ -581,10 +583,10 @@ boost::filesystem::path GetDefaultDataDir()
         pathRet = fs::path(pszHome);
 #ifdef MAC_OSX
     // Mac
-    return pathRet / "Library/Application Support/DashCore";
+    return pathRet / "Library/Application Support/SierraCore";
 #else
     // Unix
-    return pathRet / ".dashcore";
+    return pathRet / ".sierracore";
 #endif
 #endif
 }
@@ -654,10 +656,38 @@ void ReadConfigFile(const std::string& confPath)
 {
     boost::filesystem::ifstream streamConfig(GetConfigFile(confPath));
     if (!streamConfig.good()){
-        // Create empty dash.conf if it does not excist
+        // Create empty sierra.conf if it does not excist
         FILE* configFile = fopen(GetConfigFile(confPath).string().c_str(), "a");
-        if (configFile != NULL)
+        if (configFile != NULL) {
+            uint64_t coins = nMinimumStakeValue / COIN;
+            uint64_t confs = COINBASE_MATURITY + 1;
+            std::string strHeader =
+                "# Configuration file\n"
+                "\n"
+                "# Uncomment option below to enable staking. Please remember that only those\n"
+                "# inputs are qualified for staking which:\n"
+                "# - have at least " + std::to_string(coins) + " coins AND\n"
+                "# - have at least " + std::to_string(confs) + " confirmations AND\n"
+                "# - mature enough after creation or previous stake generation\n"
+                "#\n"
+                "# staking=1\n"
+                "\n"
+                "# At least the following lines should be included on the masternode side (VPS)\n"
+                "# to enable masternode. Please refer to original Dash documentation and/or\n"
+                "# masternode hosting provider about DIP3 masternodes. More options could be\n"
+                "# necessary in some particular cases.\n"
+                "#\n"
+                "# More info on DIP3 masternodes:\n"
+                "#\n"
+                "# https://docs.dash.org/en/stable/masternodes/setup.html\n"
+                "# https://docs.dash.org/en/stable/masternodes/understanding.html#dip3-changes\n"
+                "# https://docs.dash.org/en/0.13.0/masternodes/dip3-upgrade.html\n"
+                "#\n"
+                "# masternode=1\n"
+                "# masternodeblsprivkey=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n";
+            fwrite(strHeader.c_str(), std::strlen(strHeader.c_str()), 1, configFile);
             fclose(configFile);
+        }
         return; // Nothing to read, so just return
     }
 
@@ -668,7 +698,7 @@ void ReadConfigFile(const std::string& confPath)
 
         for (boost::program_options::detail::config_file_iterator it(streamConfig, setOptions), end; it != end; ++it)
         {
-            // Don't overwrite existing settings so command line settings override dash.conf
+            // Don't overwrite existing settings so command line settings override sierra.conf
             std::string strKey = std::string("-") + it->string_key;
             std::string strValue = it->value[0];
             InterpretNegativeSetting(strKey, strValue);
@@ -987,6 +1017,19 @@ bool SetupNetworking()
     return true;
 }
 
+void SetThreadPriority(int nPriority)
+{
+#ifdef WIN32
+    SetThreadPriority(GetCurrentThread(), nPriority);
+#else // WIN32
+#ifdef PRIO_THREAD
+    setpriority(PRIO_THREAD, 0, nPriority);
+#else // PRIO_THREAD
+    setpriority(PRIO_PROCESS, 0, nPriority);
+#endif // PRIO_THREAD
+#endif // WIN32
+}
+
 int GetNumCores()
 {
 #if BOOST_VERSION >= 105600
@@ -998,12 +1041,17 @@ int GetNumCores()
 
 std::string CopyrightHolders(const std::string& strPrefix, unsigned int nStartYear, unsigned int nEndYear)
 {
-    std::string strCopyrightHolders = strPrefix + strprintf(" %u-%u ", nStartYear, nEndYear) + strprintf(_(COPYRIGHT_HOLDERS), _(COPYRIGHT_HOLDERS_SUBSTITUTION));
+    std::string strCopyrightHolders;
+
 
     // Check for untranslated substitution to make sure Bitcoin Core copyright is not removed by accident
     if (strprintf(COPYRIGHT_HOLDERS, COPYRIGHT_HOLDERS_SUBSTITUTION).find("Bitcoin Core") == std::string::npos) {
-        strCopyrightHolders += "\n" + strPrefix + strprintf(" %u-%u ", 2009, nEndYear) + "The Bitcoin Core developers";
+        strCopyrightHolders += strPrefix + strprintf(" %u-%u ", 2009, 2014) + "The Bitcoin Core developers";
+        strCopyrightHolders += "\n" + strPrefix + strprintf(" %u-%u ", 2014, 2018) + "The Dash Core developers";
+        strCopyrightHolders += "\n" + strPrefix + strprintf(" %u-%u ", 2018, 2020) + "The Sierra Core developers \n";
     }
+
+
     return strCopyrightHolders;
 }
 
@@ -1054,4 +1102,3 @@ std::string SafeIntVersionToString(uint32_t nVersion)
         return "invalid_version";
     }
 }
-

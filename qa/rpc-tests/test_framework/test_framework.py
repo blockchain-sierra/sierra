@@ -14,7 +14,6 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from time import time, sleep
 
-from test_framework.mininode import wait_until
 from .util import (
     assert_equal,
     initialize_chain,
@@ -120,11 +119,11 @@ class BitcoinTestFramework(object):
 
         parser = optparse.OptionParser(usage="%prog [options]")
         parser.add_option("--nocleanup", dest="nocleanup", default=False, action="store_true",
-                          help="Leave dashds and test.* datadir on exit or error")
+                          help="Leave sierrads and test.* datadir on exit or error")
         parser.add_option("--noshutdown", dest="noshutdown", default=False, action="store_true",
-                          help="Don't stop dashds after the test execution")
+                          help="Don't stop sierrads after the test execution")
         parser.add_option("--srcdir", dest="srcdir", default=os.path.normpath(os.path.dirname(os.path.realpath(__file__))+"/../../../src"),
-                          help="Source directory containing dashd/dash-cli (default: %default)")
+                          help="Source directory containing sierrad/sierra-cli (default: %default)")
         parser.add_option("--cachedir", dest="cachedir", default=os.path.normpath(os.path.dirname(os.path.realpath(__file__))+"/../../cache"),
                           help="Directory for caching pregenerated datadirs")
         parser.add_option("--tmpdir", dest="tmpdir", default=tempfile.mkdtemp(prefix="test"),
@@ -152,45 +151,41 @@ class BitcoinTestFramework(object):
 
         check_json_precision()
 
-        # Set up temp directory and start logging
-        os.makedirs(self.options.tmpdir, exist_ok=False)
-        self._start_logging()
-
         success = False
-
         try:
+            os.makedirs(self.options.tmpdir, exist_ok=False)
             self.setup_chain()
             self.setup_network()
             self.run_test()
             success = True
         except JSONRPCException as e:
-            self.log.exception("JSONRPC error")
+            print("JSONRPC error: "+e.error['message'])
+            traceback.print_tb(sys.exc_info()[2])
         except AssertionError as e:
-            self.log.exception("Assertion failed")
+            print("Assertion failed: " + str(e))
+            traceback.print_tb(sys.exc_info()[2])
         except KeyError as e:
-            self.log.exception("Key error")
+            print("key not found: "+ str(e))
+            traceback.print_tb(sys.exc_info()[2])
         except Exception as e:
-            self.log.exception("Unexpected exception caught during testing")
+            print("Unexpected exception caught during testing: " + repr(e))
+            traceback.print_tb(sys.exc_info()[2])
         except KeyboardInterrupt as e:
-            self.log.warning("Exiting after keyboard interrupt")
+            print("Exiting after " + repr(e))
 
         if not self.options.noshutdown:
-            self.log.info("Stopping nodes")
-            try:
-                stop_nodes(self.nodes)
-            except BaseException as e:
-                success = False
-                self.log.exception("Unexpected exception caught during shutdown")
+            print("Stopping nodes")
+            stop_nodes(self.nodes)
         else:
-            self.log.info("Note: dashds were not stopped and may still be running")
+            print("Note: sierrads were not stopped and may still be running")
 
         if not self.options.nocleanup and not self.options.noshutdown and success:
-            self.log.info("Cleaning up")
+            print("Cleaning up")
             shutil.rmtree(self.options.tmpdir)
             if not os.listdir(self.options.root):
                 os.rmdir(self.options.root)
         else:
-            self.log.warning("Not cleaning up dir %s" % self.options.tmpdir)
+            print("Not cleaning up dir %s" % self.options.tmpdir)
             if os.getenv("PYTHON_DEBUG", ""):
                 # Dump the end of the debug logs, to aid in debugging rare
                 # travis failures.
@@ -253,7 +248,7 @@ class MasternodeInfo:
 
 
 class DashTestFramework(BitcoinTestFramework):
-    def __init__(self, num_nodes, masterodes_count, extra_args=None, fast_dip3_enforcement=False):
+    def __init__(self, num_nodes, masterodes_count, extra_args, fast_dip3_enforcement=False):
         super().__init__()
         self.mn_count = masterodes_count
         self.num_nodes = num_nodes
@@ -261,20 +256,17 @@ class DashTestFramework(BitcoinTestFramework):
         self.setup_clean_chain = True
         self.is_network_split = False
         # additional args
-        if extra_args is None:
-            extra_args = [[]] * num_nodes
-        assert_equal(len(extra_args), num_nodes)
         self.extra_args = extra_args
 
-        self.extra_args[0] += ["-sporkkey=cP4EKFyJsHT39LDqgdcB43Y3YXjNyjb5Fuas1GQSeAtjnZWmZEQK"]
+        self.extra_args += ["-sporkkey=cP4EKFyJsHT39LDqgdcB43Y3YXjNyjb5Fuas1GQSeAtjnZWmZEQK"]
+
         self.fast_dip3_enforcement = fast_dip3_enforcement
         if fast_dip3_enforcement:
-            for i in range(0, num_nodes):
-                self.extra_args[i] += ["-dip3params=30:50"]
+            self.extra_args += ["-dip3params=30:50"]
 
     def create_simple_node(self):
         idx = len(self.nodes)
-        args = self.extra_args[idx]
+        args = self.extra_args
         self.nodes.append(start_node(idx, self.options.tmpdir, args))
         for i in range(0, idx):
             connect_nodes(self.nodes[i], idx)
@@ -333,7 +325,7 @@ class DashTestFramework(BitcoinTestFramework):
             copy_datadir(0, idx + start_idx, self.options.tmpdir)
 
         # restart faucet node
-        self.nodes[0] = start_node(0, self.options.tmpdir, self.extra_args[0])
+        self.nodes[0] = start_node(0, self.options.tmpdir, self.extra_args)
 
     def start_masternodes(self):
         start_idx = len(self.nodes)
@@ -344,7 +336,7 @@ class DashTestFramework(BitcoinTestFramework):
 
         def do_start(idx):
             args = ['-masternode=1',
-                    '-masternodeblsprivkey=%s' % self.mninfo[idx].keyOperator] + self.extra_args[idx + start_idx]
+                    '-masternodeblsprivkey=%s' % self.mninfo[idx].keyOperator] + self.extra_args
             node = start_node(idx + start_idx, self.options.tmpdir, args)
             self.mninfo[idx].nodeIdx = idx + start_idx
             self.mninfo[idx].node = node
@@ -352,8 +344,8 @@ class DashTestFramework(BitcoinTestFramework):
             wait_to_sync(node, True)
 
         def do_connect(idx):
-            # Connect to the control node only, masternodes should take care of intra-quorum connections themselves
-            connect_nodes(self.mninfo[idx].node, 0)
+            for i in range(0, idx + 1):
+                connect_nodes(self.nodes[idx + start_idx], i)
 
         jobs = []
 
@@ -382,7 +374,7 @@ class DashTestFramework(BitcoinTestFramework):
     def setup_network(self):
         self.nodes = []
         # create faucet node for collateral and transactions
-        self.nodes.append(start_node(0, self.options.tmpdir, self.extra_args[0]))
+        self.nodes.append(start_node(0, self.options.tmpdir, self.extra_args))
         required_balance = MASTERNODE_COLLATERAL * self.mn_count + 1
         while self.nodes[0].getbalance() < required_balance:
             set_mocktime(get_mocktime() + 1)
@@ -403,12 +395,6 @@ class DashTestFramework(BitcoinTestFramework):
         self.prepare_masternodes()
         self.prepare_datadirs()
         self.start_masternodes()
-
-        # non-masternodes where disconnected from the control node during prepare_datadirs,
-        # let's reconnect them back to make sure they receive updates
-        num_simple_nodes = self.num_nodes - self.mn_count - 1
-        for i in range(0, num_simple_nodes):
-            connect_nodes(self.nodes[i+1], 0)
 
         set_mocktime(get_mocktime() + 1)
         set_node_times(self.nodes, get_mocktime())
@@ -555,53 +541,23 @@ class DashTestFramework(BitcoinTestFramework):
         self.sync_all()
         return self.wait_for_instantlock(txid, sender)
 
-    def wait_for_tx(self, txid, node, expected=True, timeout=15):
-        def check_tx():
+    def wait_for_instantlock(self, txid, node):
+        # wait for instantsend locks
+        start = time()
+        locked = False
+        while True:
             try:
-                return node.getrawtransaction(txid)
+                is_tx = node.getrawtransaction(txid, True)
+                if is_tx['instantlock']:
+                    locked = True
+                    break
             except:
-                return False
-        w = wait_until(check_tx, timeout=timeout, sleep=0.5)
-        if not w and expected:
-            raise AssertionError("wait_for_instantlock failed")
-        elif w and not expected:
-            raise AssertionError("waiting unexpectedly succeeded")
-
-    def wait_for_instantlock(self, txid, node, expected=True, timeout=15, do_assert=False):
-        def check_instantlock():
-            try:
-                return node.getrawtransaction(txid, True)["instantlock"]
-            except:
-                return False
-        w = wait_until(check_instantlock, timeout=timeout, sleep=0.1)
-        if not w and expected:
-            if do_assert:
-                raise AssertionError("wait_for_instantlock failed")
-            else:
-                return False
-        elif w and not expected:
-            if do_assert:
-                raise AssertionError("waiting unexpectedly succeeded")
-            else:
-                return False
-        return True
-
-    def wait_for_chainlocked_block(self, node, block_hash, expected=True, timeout=15):
-        def check_chainlocked_block():
-            try:
-                block = node.getblock(block_hash)
-                return block["confirmations"] > 0 and block["chainlock"]
-            except:
-                return False
-        w = wait_until(check_chainlocked_block, timeout=timeout, sleep=0.1)
-        if not w and expected:
-            raise AssertionError("wait_for_chainlocked_block failed")
-        elif w and not expected:
-            raise AssertionError("waiting unexpectedly succeeded")
-
-    def wait_for_chainlocked_block_all_nodes(self, block_hash, timeout=15):
-        for node in self.nodes:
-            self.wait_for_chainlocked_block(node, block_hash, timeout=timeout)
+                # TX not received yet?
+                pass
+            if time() > start + 10:
+                break
+            sleep(0.5)
+        return locked
 
     def wait_for_sporks_same(self, timeout=30):
         st = time()
@@ -735,16 +691,6 @@ class DashTestFramework(BitcoinTestFramework):
 
         return new_quorum
 
-    def wait_for_mnauth(self, node, count, timeout=10):
-        def test():
-            pi = node.getpeerinfo()
-            c = 0
-            for p in pi:
-                if "verified_proregtx_hash" in p and p["verified_proregtx_hash"] != "":
-                    c += 1
-            return c >= count
-        assert wait_until(test, timeout=timeout)
-
 # Test framework for doing p2p comparison testing, which sets up some bitcoind
 # binaries:
 # 1 binary: test binary
@@ -760,15 +706,15 @@ class ComparisonTestFramework(BitcoinTestFramework):
 
     def add_options(self, parser):
         parser.add_option("--testbinary", dest="testbinary",
-                          default=os.getenv("BITCOIND", "dashd"),
-                          help="dashd binary to test")
+                          default=os.getenv("SIERRAD", "sierrad"),
+                          help="bitcoind binary to test")
         parser.add_option("--refbinary", dest="refbinary",
-                          default=os.getenv("BITCOIND", "dashd"),
-                          help="dashd binary to use for reference nodes (if any)")
+                          default=os.getenv("SIERRAD", "sierrad"),
+                          help="bitcoind binary to use for reference nodes (if any)")
 
     def setup_network(self):
         self.nodes = start_nodes(
             self.num_nodes, self.options.tmpdir,
-            extra_args=[['-whitelist=127.0.0.1']] * self.num_nodes,
+            extra_args=[['-debug', '-whitelist=127.0.0.1']] * self.num_nodes,
             binary=[self.options.testbinary] +
             [self.options.refbinary]*(self.num_nodes-1))

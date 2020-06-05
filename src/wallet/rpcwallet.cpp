@@ -672,7 +672,6 @@ UniValue signmessage(const JSONRPCRequest& request)
     CHashWriter ss(SER_GETHASH, 0);
     ss << strMessageMagic;
     ss << strMessage;
-
     std::vector<unsigned char> vchSig;
     if (!key.SignCompact(ss.GetHash(), vchSig))
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Sign failed");
@@ -1495,7 +1494,7 @@ void ListTransactions(CWallet * const pwallet, const CWalletTx& wtx, const std::
                 }
                 entry.push_back(Pair("account", account));
                 MaybePushAddress(entry, r.destination);
-                if (wtx.IsCoinBase())
+                if (wtx.IsCoinBase() || wtx.IsCoinStake())
                 {
                     if (wtx.GetDepthInMainChain() < 1)
                         entry.push_back(Pair("category", "orphan"));
@@ -2977,6 +2976,27 @@ UniValue fundrawtransaction(const JSONRPCRequest& request)
     return result;
 }
 
+UniValue setbip69enabled(const JSONRPCRequest& request)
+{
+    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp))
+        return NullUniValue;
+
+    if (request.fHelp || request.params.size() != 1)
+        throw std::runtime_error(
+            "setbip69enabled enable\n"
+                "\nEnable/Disable BIP69 input/output sorting (-regtest only)\n"
+                "\nArguments:\n"
+                "1. enable  (bool, required) true or false"
+        );
+    if (Params().NetworkIDString() != CBaseChainParams::REGTEST)
+        throw std::runtime_error("setbip69enabled for regression testing (-regtest mode) only");
+
+    bBIP69Enabled = request.params[0].get_bool();
+
+    return NullUniValue;
+}
+
 extern UniValue dumpprivkey(const JSONRPCRequest& request); // in rpcdump.cpp
 extern UniValue importprivkey(const JSONRPCRequest& request);
 extern UniValue importaddress(const JSONRPCRequest& request);
@@ -3047,6 +3067,8 @@ static const CRPCCommand commands[] =
     { "wallet",             "instantsendtoaddress",     &instantsendtoaddress,     false,  {"address","amount","comment","comment_to","subtractfeefromamount"} },
     { "wallet",             "dumphdinfo",               &dumphdinfo,               true,   {} },
     { "wallet",             "importelectrumwallet",     &importelectrumwallet,     true,   {"filename", "index"} },
+
+    { "hidden",             "setbip69enabled",          &setbip69enabled,          true,   {} },
 };
 
 void RegisterWalletRPCCommands(CRPCTable &t)

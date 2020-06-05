@@ -23,7 +23,7 @@ AUTO_IX_MEM_THRESHOLD = 0.1
 
 class AutoISMempoolTest(DashTestFramework):
     def __init__(self):
-        super().__init__(8, 5, [["-maxmempool=%d" % MAX_MEMPOOL_SIZE, '-limitdescendantsize=10']] * 8, fast_dip3_enforcement=True)
+        super().__init__(8, 5, ["-maxmempool=%d" % MAX_MEMPOOL_SIZE, '-limitdescendantsize=10'], fast_dip3_enforcement=True)
         # set sender,  receiver
         self.receiver_idx = 1
         self.sender_idx = 2
@@ -99,10 +99,9 @@ class AutoISMempoolTest(DashTestFramework):
         self.wait_for_sporks_same()
 
         # autoIS is not working now
-        if not new_is:
-            assert(not self.send_simple_tx(sender, receiver))
-            # regular IS is still working for old IS but not for new one
-            assert(not self.send_regular_instantsend(sender, receiver, False) if new_is else self.send_regular_instantsend(sender, receiver))
+        assert(not self.send_simple_tx(sender, receiver))
+        # regular IS is still working for old IS but not for new one
+        assert(not self.send_regular_instantsend(sender, receiver, False) if new_is else self.send_regular_instantsend(sender, receiver))
 
         # generate one block to clean up mempool and retry auto and regular IS
         # generate 5 more blocks to avoid retroactive signing (which would overload Travis)

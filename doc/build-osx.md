@@ -13,57 +13,77 @@ When the popup appears, click `Install`.
 
 Then install [Homebrew](https://brew.sh).
 
-Base build dependencies
------------------------
+Dependencies
+----------------------
 
-```bash
-brew install automake libtool pkg-config
-```
+    brew install automake berkeley-db4 libtool boost --c++11 miniupnpc openssl pkg-config protobuf qt libevent
 
 If you want to build the disk image with `make deploy` (.dmg / optional), you need RSVG
-```bash
-brew install librsvg
-```
 
-Building
---------
+    brew install librsvg
 
-Follow the instructions in [build-generic](build-generic.md)
+NOTE: Building with Qt4 is still supported, however, doing so could result in a broken UI. Therefore, building with Qt5 is recommended.
+
+Build Sierra Core
+------------------------
+
+1. Clone the Sierra Core source code and cd into `sierra`
+
+        git clone https://github.com/sierracoin/sierra
+        cd sierra
+
+2.  Build Sierra Core:
+
+    Configure and build the headless sierra binaries as well as the GUI (if Qt is found).
+
+    You can disable the GUI build by passing `--without-gui` to configure.
+
+        ./autogen.sh
+        ./configure
+        make
+
+3.  It is recommended to build and run the unit tests:
+
+        make check
+
+4.  You can also create a .dmg that contains the .app bundle (optional):
+
+        make deploy
 
 Running
 -------
 
-Dash Core is now available at `./src/dashd`
+Sierra Core is now available at `./src/sierrad`
 
 Before running, it's recommended you create an RPC configuration file.
 
-    echo -e "rpcuser=dashrpc\nrpcpassword=$(xxd -l 16 -p /dev/urandom)" > "/Users/${USER}/Library/Application Support/DashCore/dash.conf"
+    echo -e "rpcuser=sierrarpc\nrpcpassword=$(xxd -l 16 -p /dev/urandom)" > "/Users/${USER}/Library/Application Support/SierraCore/sierra.conf"
 
-    chmod 600 "/Users/${USER}/Library/Application Support/DashCore/dash.conf"
+    chmod 600 "/Users/${USER}/Library/Application Support/SierraCore/sierra.conf"
 
-The first time you run dashd, it will start downloading the blockchain. This process could take several hours.
+The first time you run sierrad, it will start downloading the blockchain. This process could take several hours.
 
 You can monitor the download process by looking at the debug.log file:
 
-    tail -f $HOME/Library/Application\ Support/DashCore/debug.log
+    tail -f $HOME/Library/Application\ Support/SierraCore/debug.log
 
 Other commands:
 -------
 
-    ./src/dashd -daemon # Starts the dash daemon.
-    ./src/dash-cli --help # Outputs a list of command-line options.
-    ./src/dash-cli help # Outputs a list of RPC commands when the daemon is running.
+    ./src/sierrad -daemon # Starts the sierra daemon.
+    ./src/sierra-cli --help # Outputs a list of command-line options.
+    ./src/sierra-cli help # Outputs a list of RPC commands when the daemon is running.
 
 Using Qt Creator as IDE
 ------------------------
-You can use Qt Creator as an IDE, for dash development.
+You can use Qt Creator as an IDE, for sierra development.
 Download and install the community edition of [Qt Creator](https://www.qt.io/download/).
 Uncheck everything except Qt Creator during the installation process.
 
 1. Make sure you installed everything through Homebrew mentioned above
 2. Do a proper ./configure --enable-debug
 3. In Qt Creator do "New Project" -> Import Project -> Import Existing Project
-4. Enter "dash-qt" as project name, enter src/qt as location
+4. Enter "sierra-qt" as project name, enter src/qt as location
 5. Leave the file selection as it is
 6. Confirm the "summary page"
 7. In the "Projects" tab select "Manage Kits..."

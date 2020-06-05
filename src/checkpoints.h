@@ -21,6 +21,8 @@ namespace Checkpoints
 
 //! Returns last CBlockIndex* in mapBlockIndex that is a checkpoint
 CBlockIndex* GetLastCheckpoint(const CCheckpointData& data);
+const CBlockIndex *AutoSelectSyncCheckpoint();
+bool CheckSync(int nHeight);
 
 } //namespace Checkpoints
 

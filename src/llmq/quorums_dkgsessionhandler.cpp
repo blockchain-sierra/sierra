@@ -147,9 +147,7 @@ bool CDKGSessionHandler::InitNewQuorum(const CBlockIndex* pindexQuorum)
 
     curSession = std::make_shared<CDKGSession>(params, blsWorker, dkgManager);
 
-    if (!deterministicMNManager->IsDIP3Enforced(pindexQuorum->nHeight)) {
-        return false;
-    }
+    if (!FullDIP0003Mode()) return false;
 
     auto mns = CLLMQUtils::GetAllQuorumMembers(params.type, pindexQuorum);
 

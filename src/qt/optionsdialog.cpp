@@ -3,7 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #if defined(HAVE_CONFIG_H)
-#include "config/dash-config.h"
+#include "config/sierra-config.h"
 #endif
 
 #include "optionsdialog.h"
@@ -92,13 +92,7 @@ OptionsDialog::OptionsDialog(QWidget *parent, bool enableWallet) :
     }
     
     /* Theme selector */
-    ui->theme->addItem(QString("Light"), QVariant("light"));
-    ui->theme->addItem(QString("Light-HiRes"), QVariant("light-hires"));
-    ui->theme->addItem(QString("Light-Retro"), QVariant("light-retro"));
-    ui->theme->addItem(QString("Light-HiRes-Retro"), QVariant("light-hires-retro"));
-    ui->theme->addItem(QString("Blue"), QVariant("drkblue"));
-    ui->theme->addItem(QString("Crownium"), QVariant("crownium"));
-    ui->theme->addItem(QString("Traditional"), QVariant("trad"));
+    ui->theme->addItem(QString("Default"), QVariant("default"));
 
     /* Language selector */
     QDir translations(":translations");
@@ -217,6 +211,16 @@ void OptionsDialog::setMapper()
     mapper->addMapping(ui->spendZeroConfChange, OptionsModel::SpendZeroConfChange);
     mapper->addMapping(ui->privateSendRounds, OptionsModel::PrivateSendRounds);
     mapper->addMapping(ui->privateSendAmount, OptionsModel::PrivateSendAmount);
+
+    ui->showAdvancedPSUI->hide();
+    ui->showPrivateSendPopups->hide();
+    ui->lowKeysWarning->hide();
+    ui->privateSendMultiSession->hide();
+
+    ui->privateSendRoundsLabel->hide();
+    ui->privateSendAmountLabel->hide();
+    ui->privateSendRounds->hide();
+    ui->privateSendAmount->hide();
 
     /* Network */
     mapper->addMapping(ui->mapPortUpnp, OptionsModel::MapPortUPnP);

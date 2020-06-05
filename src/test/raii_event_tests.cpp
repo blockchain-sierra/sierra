@@ -12,7 +12,7 @@
 
 #include "support/events.h"
 
-#include "test/test_dash.h"
+#include "test/test_sierra.h"
 
 #include <vector>
 

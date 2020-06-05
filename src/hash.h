@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2015 The Bitcoin Core developers
-// Copyright (c) 2014-2018 The Dash Core developers
+// Copyright (c) 2014-2017 The Sierra Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -376,6 +376,25 @@ inline uint256 HashX11(const T1 pbegin, const T1 pend)
     sph_echo512_close(&ctx_echo, static_cast<void*>(&hash[10]));
 
     return hash[10].trim256();
+}
+
+
+/* ----------- Skein Hash ------------------------------------------------ */
+inline uint256 HashSkein(const char* input, uint32_t len)
+{
+    char temp[64];
+    uint256 hash;
+
+    sph_skein512_context ctx_skein;
+    sph_skein512_init(&ctx_skein);
+    sph_skein512(&ctx_skein, input, len);
+    sph_skein512_close(&ctx_skein, &temp);
+
+    CSHA256 sha256;
+    sha256.Write((const unsigned char *)temp, sizeof(temp));
+    sha256.Finalize((unsigned char*)&hash);
+
+    return hash;
 }
 
 #endif // BITCOIN_HASH_H

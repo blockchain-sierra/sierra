@@ -70,90 +70,104 @@ bool IsOldBudgetBlockValueValid(const CBlock& block, int nBlockHeight, CAmount b
 *   Determine if coinbase outgoing created money is the correct value
 *
 *   Why is this needed?
-*   - In Dash some blocks are superblocks, which output much higher amounts of coins
+*   - In Sierra some blocks are superblocks, which output much higher amounts of coins
 *   - Otherblocks are 10% lower in outgoing value, so in total, no extra coins are created
 *   - When non-superblocks are detected, the normal schedule should be maintained
 */
 
-bool IsBlockValueValid(const CBlock& block, int nBlockHeight, CAmount blockReward, std::string& strErrorRet)
+bool IsBlockValueValid(const CBlock& block, int nBlockHeight, CAmount expectedReward, CAmount actualReward, std::string& strErrorRet)
 {
-    const Consensus::Params& consensusParams = Params().GetConsensus();
-    bool isBlockRewardValueMet = (block.vtx[0]->GetValueOut() <= blockReward);
-
     strErrorRet = "";
+    const auto& coinbaseTransaction = (nBlockHeight > Params().GetConsensus().nLastPoWBlock ? block.vtx[1] : block.vtx[0]);
 
-    if (nBlockHeight < consensusParams.nBudgetPaymentsStartBlock) {
-        // old budget system is not activated yet, just make sure we do not exceed the regular block reward
+    bool isBlockRewardValueMet = (actualReward <= expectedReward);
+    if(fDebug) LogPrintf("actualReward %lld <= blockReward %lld\n", actualReward, expectedReward);
+
+    // we are still using budgets, but we have no data about them anymore,
+    // all we know is predefined budget cycle and window
+
+    const Consensus::Params& consensusParams = Params().GetConsensus();
+
+    if(nBlockHeight < consensusParams.nSuperblockStartBlock) {
+        int nOffset = nBlockHeight % consensusParams.nBudgetPaymentsCycleBlocks;
+        if(nBlockHeight >= consensusParams.nBudgetPaymentsStartBlock &&
+            nOffset < consensusParams.nBudgetPaymentsWindowBlocks) {
+            // NOTE: old budget system is disabled since 12.1
+            if(masternodeSync.IsSynced()) {
+                // no old budget blocks should be accepted here on mainnet,
+                // testnet/devnet/regtest should produce regular blocks only
+                LogPrint("gobject", "IsBlockValueValid -- WARNING: Client synced but old budget system is disabled, checking block value against block reward\n");
+                if(!isBlockRewardValueMet) {
+                    strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d), exceeded block reward, old budgets are disabled",
+                                            nBlockHeight, actualReward, expectedReward);
+                }
+                return isBlockRewardValueMet;
+            }
+            // when not synced, rely on online nodes (all networks)
+            LogPrint("gobject", "IsBlockValueValid -- WARNING: Skipping old budget block value checks, accepting block\n");
+            return true;
+        }
+        // LogPrint("gobject", "IsBlockValueValid -- Block is not in budget cycle window, checking block value against block reward\n");
         if(!isBlockRewardValueMet) {
-            strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d), exceeded block reward, old budgets are not activated yet",
-                                    nBlockHeight, block.vtx[0]->GetValueOut(), blockReward);
+            strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d), exceeded block reward, block is not in old budget cycle window",
+                                    nBlockHeight, actualReward, expectedReward);
         }
         return isBlockRewardValueMet;
-    } else if (nBlockHeight < consensusParams.nSuperblockStartBlock) {
-        // superblocks are not enabled yet, check if we can pass old budget rules
-        return IsOldBudgetBlockValueValid(block, nBlockHeight, blockReward, strErrorRet);
     }
 
-    if(fDebug) LogPrintf("block.vtx[0]->GetValueOut() %lld <= blockReward %lld\n", block.vtx[0]->GetValueOut(), blockReward);
+    // superblocks started
 
-    CAmount nSuperblockMaxValue =  blockReward + CSuperblock::GetPaymentsLimit(nBlockHeight);
-    bool isSuperblockMaxValueMet = (block.vtx[0]->GetValueOut() <= nSuperblockMaxValue);
+    CAmount nSuperblockMaxValue =  expectedReward + CSuperblock::GetPaymentsLimit(nBlockHeight);
+    bool isSuperblockMaxValueMet = (actualReward <= nSuperblockMaxValue);
 
     LogPrint("gobject", "block.vtx[0]->GetValueOut() %lld <= nSuperblockMaxValue %lld\n", block.vtx[0]->GetValueOut(), nSuperblockMaxValue);
 
-    if (!CSuperblock::IsValidBlockHeight(nBlockHeight)) {
-        // can't possibly be a superblock, so lets just check for block reward limits
-        if (!isBlockRewardValueMet) {
-            strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d), exceeded block reward, only regular blocks are allowed at this height",
-                                    nBlockHeight, block.vtx[0]->GetValueOut(), blockReward);
-        }
-        return isBlockRewardValueMet;
-    }
-
-    // bail out in case superblock limits were exceeded
-    if (!isSuperblockMaxValueMet) {
-        strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d), exceeded superblock max value",
-                                nBlockHeight, block.vtx[0]->GetValueOut(), nSuperblockMaxValue);
-        return false;
-    }
-
     if(!masternodeSync.IsSynced() || fLiteMode) {
-        if(fDebug) LogPrintf("%s -- WARNING: Not enough data, checked superblock max bounds only\n", __func__);
-        // not enough data for full checks but at least we know that the superblock limits were honored.
-        // We rely on the network to have followed the correct chain in this case
-        return true;
-    }
-
-    // we are synced and possibly on a superblock now
-
-    if (!sporkManager.IsSporkActive(SPORK_9_SUPERBLOCKS_ENABLED)) {
-        // should NOT allow superblocks at all, when superblocks are disabled
-        // revert to block reward limits in this case
-        LogPrint("gobject", "%s -- Superblocks are disabled, no superblocks allowed\n", __func__);
-        if(!isBlockRewardValueMet) {
-            strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d), exceeded block reward, superblocks are disabled",
-                                    nBlockHeight, block.vtx[0]->GetValueOut(), blockReward);
+        // not enough data but at least it must NOT exceed superblock max value
+        if(CSuperblock::IsValidBlockHeight(nBlockHeight)) {
+            if(fDebug) LogPrintf("IsBlockPayeeValid -- WARNING: Not enough data, checking superblock max bounds only\n");
+            if(!isSuperblockMaxValueMet) {
+                strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d), exceeded superblock max value",
+                                        nBlockHeight, actualReward, nSuperblockMaxValue);
+            }
+            return isSuperblockMaxValueMet;
         }
+        if(!isBlockRewardValueMet) {
+            strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d), exceeded block reward, only regular blocks are allowed at this height",
+                                    nBlockHeight, actualReward, expectedReward);
+        }
+        // it MUST be a regular block otherwise
         return isBlockRewardValueMet;
     }
 
-    if (!CSuperblockManager::IsSuperblockTriggered(nBlockHeight)) {
-        // we are on a valid superblock height but a superblock was not triggered
-        // revert to block reward limits in this case
+    // we are synced, let's try to check as much data as we can
+
+    if(sporkManager.IsSporkActive(SPORK_9_SUPERBLOCKS_ENABLED)) {
+        if(CSuperblockManager::IsSuperblockTriggered(nBlockHeight)) {
+            if(CSuperblockManager::IsValid(*coinbaseTransaction, nBlockHeight, expectedReward)) {
+                LogPrint("gobject", "IsBlockValueValid -- Valid superblock at height %d: %s", nBlockHeight, block.vtx[0]->ToString());
+                // all checks are done in CSuperblock::IsValid, nothing to do here
+                return true;
+            }
+
+            // triggered but invalid? that's weird
+            LogPrintf("IsBlockValueValid -- ERROR: Invalid superblock detected at height %d: %s", nBlockHeight, block.vtx[0]->ToString());
+            // should NOT allow invalid superblocks, when superblocks are enabled
+            strErrorRet = strprintf("invalid superblock detected at height %d", nBlockHeight);
+            return false;
+        }
+        LogPrint("gobject", "IsBlockValueValid -- No triggered superblock detected at height %d\n", nBlockHeight);
         if(!isBlockRewardValueMet) {
             strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d), exceeded block reward, no triggered superblock detected",
-                                    nBlockHeight, block.vtx[0]->GetValueOut(), blockReward);
+                                    nBlockHeight, actualReward, expectedReward);
         }
-        return isBlockRewardValueMet;
-    }
-
-    // this actually also checks for correct payees and not only amount
-    if (!CSuperblockManager::IsValid(*block.vtx[0], nBlockHeight, blockReward)) {
-        // triggered but invalid? that's weird
-        LogPrintf("%s -- ERROR: Invalid superblock detected at height %d: %s", __func__, nBlockHeight, block.vtx[0]->ToString());
-        // should NOT allow invalid superblocks, when superblocks are enabled
-        strErrorRet = strprintf("invalid superblock detected at height %d", nBlockHeight);
-        return false;
+    } else {
+        // should NOT allow superblocks at all, when superblocks are disabled
+        LogPrint("gobject", "IsBlockValueValid -- Superblocks are disabled, no superblocks allowed\n");
+        if(!isBlockRewardValueMet) {
+            strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d), exceeded block reward, superblocks are disabled",
+                                    nBlockHeight, actualReward, expectedReward);
+        }
     }
 
     // we got a valid superblock
@@ -229,10 +243,12 @@ void FillBlockPayments(CMutableTransaction& txNew, int nBlockHeight, CAmount blo
     txNew.vout.insert(txNew.vout.end(), voutMasternodePaymentsRet.begin(), voutMasternodePaymentsRet.end());
     txNew.vout.insert(txNew.vout.end(), voutSuperblockPaymentsRet.begin(), voutSuperblockPaymentsRet.end());
 
+    // done this way to be capable of pow/mn & pos/mn if desired
     std::string voutMasternodeStr;
+    bool IsProofOfStake = nBlockHeight > Params().GetConsensus().nLastPoWBlock ? true : false;
     for (const auto& txout : voutMasternodePaymentsRet) {
         // subtract MN payment from miner reward
-        txNew.vout[0].nValue -= txout.nValue;
+        txNew.vout[IsProofOfStake].nValue -= txout.nValue;
         if (!voutMasternodeStr.empty())
             voutMasternodeStr += ",";
         voutMasternodeStr += txout.ToString();
@@ -356,6 +372,9 @@ bool CMasternodePayments::GetBlockTxOuts(int nBlockHeight, CAmount blockReward, 
 // -- Only look ahead up to 8 blocks to allow for propagation of the latest 2 blocks of votes
 bool CMasternodePayments::IsScheduled(const CDeterministicMNCPtr& dmnIn, int nNotBlockHeight) const
 {
+    // can't verify historical blocks here
+    if (!FullDIP0003Mode()) return true;
+
     auto projectedPayees = deterministicMNManager->GetListAtChainTip().GetProjectedMNPayees(8);
     for (const auto &dmn : projectedPayees) {
         if (dmn->proTxHash == dmnIn->proTxHash) {
@@ -367,11 +386,6 @@ bool CMasternodePayments::IsScheduled(const CDeterministicMNCPtr& dmnIn, int nNo
 
 bool CMasternodePayments::IsTransactionValid(const CTransaction& txNew, int nBlockHeight, CAmount blockReward) const
 {
-    if (!deterministicMNManager->IsDIP3Enforced(nBlockHeight)) {
-        // can't verify historical blocks here
-        return true;
-    }
-
     std::vector<CTxOut> voutMasternodePayments;
     if (!GetBlockTxOuts(nBlockHeight, blockReward, voutMasternodePayments)) {
         LogPrintf("CMasternodePayments::%s -- ERROR failed to get payees for block at height %s\n", __func__, nBlockHeight);

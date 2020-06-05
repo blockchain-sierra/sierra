@@ -4,7 +4,7 @@
 
 #include "random.h"
 
-#include "test/test_dash.h"
+#include "test/test_sierra.h"
 
 #include <boost/test/unit_test.hpp>
 

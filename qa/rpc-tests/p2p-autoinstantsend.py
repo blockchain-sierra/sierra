@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2018 The Dash Core developers
+# Copyright (c) 2018 The Sierra Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -23,7 +23,7 @@ transactions with high fee.
 
 class AutoInstantSendTest(DashTestFramework):
     def __init__(self):
-        super().__init__(8, 5, fast_dip3_enforcement=True)
+        super().__init__(8, 5, [], fast_dip3_enforcement=True)
         # set sender,  receiver,  isolated nodes
         self.receiver_idx = 1
         self.sender_idx = 2

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2018 The Dash Core developers
+# Copyright (c) 2018 The Sierra Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -14,7 +14,7 @@ InstantSendTest -- test InstantSend functionality (prevent doublespend for uncon
 
 class InstantSendTest(DashTestFramework):
     def __init__(self):
-        super().__init__(9, 5, fast_dip3_enforcement=True)
+        super().__init__(9, 5, [], fast_dip3_enforcement=True)
         # set sender,  receiver,  isolated nodes
         self.isolated_idx = 1
         self.receiver_idx = 2
@@ -78,9 +78,6 @@ class InstantSendTest(DashTestFramework):
             assert (res['hash'] != wrong_block)
             # wait for long time only for first node
             timeout = 1
-        # send coins back to the controller node without waiting for confirmations
-        receiver.sendtoaddress(self.nodes[0].getnewaddress(), 0.9, "", "", True)
-        assert_equal(receiver.getwalletinfo()["balance"], 0)
         # mine more blocks
         # TODO: mine these blocks on an isolated node
         set_mocktime(get_mocktime() + 1)
@@ -119,9 +116,6 @@ class InstantSendTest(DashTestFramework):
         for node in self.nodes:
             self.wait_for_instantlock(is_id, node)
         assert_raises_jsonrpc(-5, "No such mempool or blockchain transaction", isolated.getrawtransaction, dblspnd_txid)
-        # send coins back to the controller node without waiting for confirmations
-        receiver.sendtoaddress(self.nodes[0].getnewaddress(), 0.9, "", "", True)
-        assert_equal(receiver.getwalletinfo()["balance"], 0)
 
 if __name__ == '__main__':
     InstantSendTest().main()

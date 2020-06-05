@@ -198,7 +198,12 @@ class RawTransactionsTest(BitcoinTestFramework):
         dec_tx  = self.nodes[2].decoderawtransaction(rawtx)
         assert_equal(utx['txid'], dec_tx['vin'][0]['txid'])
 
-        assert_raises_jsonrpc(-5, "changeAddress must be a valid dash address", self.nodes[2].fundrawtransaction, rawtx, {'changeAddress':'foobar'})
+        try:
+            self.nodes[2].fundrawtransaction(rawtx, {'changeAddress': 'foobar'})
+            raise AssertionError("Accepted invalid sierra address")
+        except JSONRPCException as e:
+            assert("changeAddress must be a valid sierra address" in e.error['message'])
+
 
         ############################################################
         # test a fundrawtransaction with a provided change address #
@@ -428,7 +433,7 @@ class RawTransactionsTest(BitcoinTestFramework):
         mSigObj = self.nodes[2].addmultisigaddress(2, [addr1Obj['pubkey'], addr2Obj['pubkey']])
 
 
-        # send 12 DASH to msig addr
+        # send 12 SIERRA to msig addr
         txId = self.nodes[0].sendtoaddress(mSigObj, 12)
         self.sync_all()
         self.nodes[1].generate(1)
@@ -670,6 +675,9 @@ class RawTransactionsTest(BitcoinTestFramework):
         # Make sure there is exactly one input so coin selection can't skew the result
         assert_equal(len(self.nodes[3].listunspent(1)), 1)
 
+        # Disable BIP69 sorting of inputs and outputs
+        self.nodes[3].setbip69enabled(False)
+
         inputs = []
         outputs = {self.nodes[2].getnewaddress(): 1}
         rawtx = self.nodes[3].createrawtransaction(inputs, outputs)
@@ -698,10 +706,9 @@ class RawTransactionsTest(BitcoinTestFramework):
         keys = list(outputs.keys())
         rawtx = self.nodes[3].createrawtransaction(inputs, outputs)
 
-        # Add changePosition=4 to circumvent BIP69 input/output sorting
-        result = [self.nodes[3].fundrawtransaction(rawtx, {"changePosition": 4}),
+        result = [self.nodes[3].fundrawtransaction(rawtx),
                   # split the fee between outputs 0, 2, and 3, but not output 1
-                  self.nodes[3].fundrawtransaction(rawtx, {"subtractFeeFromOutputs": [0, 2, 3], "changePosition": 4})]
+                  self.nodes[3].fundrawtransaction(rawtx, {"subtractFeeFromOutputs": [0, 2, 3]})]
 
         dec_tx = [self.nodes[3].decoderawtransaction(result[0]['hex']),
                   self.nodes[3].decoderawtransaction(result[1]['hex'])]
@@ -733,6 +740,9 @@ class RawTransactionsTest(BitcoinTestFramework):
 
         # the total subtracted from the outputs is equal to the fee
         assert_equal(share[0] + share[2] + share[3], result[0]['fee'])
+
+        # Reenable BIP69 sorting of inputs and outputs
+        self.nodes[3].setbip69enabled(True)
 
 if __name__ == '__main__':
     RawTransactionsTest().main()

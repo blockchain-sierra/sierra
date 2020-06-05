@@ -4,6 +4,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "chain.h"
+#include "util.h"
 
 /**
  * CChain implementation
@@ -62,8 +63,46 @@ const CBlockIndex *CChain::FindFork(const CBlockIndex *pindex) const {
 CBlockIndex* CChain::FindEarliestAtLeast(int64_t nTime) const
 {
     std::vector<CBlockIndex*>::const_iterator lower = std::lower_bound(vChain.begin(), vChain.end(), nTime,
-        [](CBlockIndex* pBlock, const int64_t& time) -> bool { return pBlock->GetBlockTimeMax() < time; });
+                                                                       [](CBlockIndex* pBlock, const int64_t& time) -> bool { return pBlock->GetBlockTimeMax() < time; });
     return (lower == vChain.end() ? NULL : *lower);
+}
+
+uint64_t CChain::GetAvgBlockTime(int lookup, int height) const
+{
+    CBlockIndex *pb = Tip();
+
+    if (height > 0 && height <= Height())
+        pb = (*this)[height];
+
+    if (!pb || !pb->nHeight)
+        return 0;
+
+    // If lookup <= 0 then use last 100 blocks
+    if (lookup <= 0)
+        lookup = 100;
+
+    // If lookup is larger than chain, then set it to chain length.
+    if (lookup > pb->nHeight)
+        lookup = pb->nHeight;
+
+    if (!lookup)
+        return 0;
+
+    CBlockIndex* pb0 = pb;
+    int64_t minTime = pb0->GetBlockTime();
+    int64_t maxTime = minTime;
+
+    for (int i = 0; i < lookup; i++) {
+        pb0 = pb0->pprev;
+        int64_t time = pb0->GetBlockTime();
+        minTime = std::min(time, minTime);
+        maxTime = std::max(time, maxTime);
+    }
+
+    int64_t timeDiff = maxTime - minTime;
+    int64_t avgBlockTime = ((double)timeDiff / lookup) + 0.5;
+
+    return avgBlockTime;
 }
 
 /** Turn the lowest '1' bit in the binary representation of a number into a '0'. */
@@ -104,6 +143,22 @@ CBlockIndex* CBlockIndex::GetAncestor(int height)
         }
     }
     return pindexWalk;
+}
+
+unsigned int CBlockIndex::GetStakeEntropyBit() const
+{
+    unsigned int nEntropyBit = (UintToArith256(GetBlockHash()).GetLow64() & 1);
+    if (GetBoolArg("-printstakemodifier", false))
+        LogPrintf("GetStakeEntropyBit: nHeight=%u hashBlock=%s nEntropyBit=%u\n", nHeight, GetBlockHash().ToString().c_str(), nEntropyBit);
+
+    return nEntropyBit;
+}
+
+void CBlockIndex::SetStakeModifier(uint64_t nModifier, bool fGeneratedStakeModifier)
+{
+    nStakeModifier = nModifier;
+    if (fGeneratedStakeModifier)
+        nFlags |= BLOCK_STAKE_MODIFIER;
 }
 
 const CBlockIndex* CBlockIndex::GetAncestor(int height) const
@@ -147,4 +202,21 @@ int64_t GetBlockProofEquivalentTime(const CBlockIndex& to, const CBlockIndex& fr
         return sign * std::numeric_limits<int64_t>::max();
     }
     return sign * r.GetLow64();
+}
+
+arith_uint256 CBlockIndex::GetBlockTrust() const
+{
+    arith_uint256 bnTarget;
+    bnTarget.SetCompact(nBits);
+    if (bnTarget <= 0)
+        return 0;
+
+    if (IsProofOfStake()) {
+        // Return trust score as usual
+        return (arith_uint256(1) << 256) / (bnTarget + 1);
+    } else {
+        // Calculate work amount for block
+        arith_uint256 bnPoWTrust = ((~arith_uint256(0) >> 20) / (bnTarget + 1));
+        return bnPoWTrust > 1 ? bnPoWTrust : 1;
+    }
 }

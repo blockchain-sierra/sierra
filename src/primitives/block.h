@@ -28,6 +28,8 @@ public:
     uint32_t nBits;
     uint32_t nNonce;
 
+    static const int32_t NORMAL_SERIALIZE_SIZE = 80;
+
     CBlockHeader()
     {
         SetNull();
@@ -45,6 +47,7 @@ public:
         READWRITE(nNonce);
     }
 
+
     void SetNull()
     {
         nVersion = 0;
@@ -53,6 +56,7 @@ public:
         nTime = 0;
         nBits = 0;
         nNonce = 0;
+
     }
 
     bool IsNull() const
@@ -62,10 +66,13 @@ public:
 
     uint256 GetHash() const;
 
+
     int64_t GetBlockTime() const
     {
         return (int64_t)nTime;
     }
+
+
 };
 
 
@@ -74,8 +81,11 @@ class CBlock : public CBlockHeader
 public:
     // network and disk
     std::vector<CTransactionRef> vtx;
+    std::vector<unsigned char> vchBlockSig;
 
     // memory only
+    mutable CTxOut txoutMasternode; // masternode payment
+    mutable std::vector<CTxOut> voutSuperblock; // superblock payment
     mutable bool fChecked;
 
     CBlock()
@@ -95,14 +105,22 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
+        if(vtx.size() > 1 && vtx[1]->IsCoinStake())
+        {
+            // READWRITE(vchBlockSig);
+        }
     }
 
     void SetNull()
     {
         CBlockHeader::SetNull();
         vtx.clear();
+        txoutMasternode = CTxOut();
+        voutSuperblock.clear();
         fChecked = false;
+        vchBlockSig.clear();
     }
+
 
     CBlockHeader GetBlockHeader() const
     {
@@ -115,6 +133,8 @@ public:
         block.nNonce         = nNonce;
         return block;
     }
+    bool IsProofOfStake() const;
+    bool IsProofOfWork() const;
 
     std::string ToString() const;
 };
